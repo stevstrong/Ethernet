@@ -8,44 +8,22 @@
  * published by the Free Software Foundation.
  */
 
-// w5100.h contains private W5x00 hardware "driver" level definitions
+// w5500.h contains private W5x00 hardware "driver" level definitions
 // which are not meant to be exposed to other libraries or Arduino users
 
-#ifndef	W5100_H_INCLUDED
-#define	W5100_H_INCLUDED
+#ifndef	W5500_H_INCLUDED
+#define	W5500_H_INCLUDED
 
 #include <Arduino.h>
 #include <SPI.h>
 
 // Safe for all chips
-#define SPI_ETHERNET_SETTINGS SPISettings(14000000, MSBFIRST, SPI_MODE0)
-
-// Safe for W5200 and W5500, but too fast for W5100
-// Uncomment this if you know you'll never need W5100 support.
-//  Higher SPI clock only results in faster transfer to hosts on a LAN
-//  or with very low packet latency.  With ordinary internet latency,
-//  the TCP window size & packet loss determine your overall speed.
-//#define SPI_ETHERNET_SETTINGS SPISettings(30000000, MSBFIRST, SPI_MODE0)
+#define SPI_ETHERNET_SETTINGS SPISettings(40000000, MSBFIRST, SPI_MODE0)
 
 
 // Require Ethernet.h, because we need MAX_SOCK_NUM
 #ifndef ethernet_h_
-#error "Ethernet.h must be included before w5100.h"
-#endif
-
-
-// Arduino 101's SPI can not run faster than 8 MHz.
-#if defined(ARDUINO_ARCH_ARC32)
-#undef SPI_ETHERNET_SETTINGS
-#define SPI_ETHERNET_SETTINGS SPISettings(8000000, MSBFIRST, SPI_MODE0)
-#endif
-
-// Arduino Zero can't use W5100-based shields faster than 8 MHz
-// https://github.com/arduino-libraries/Ethernet/issues/37#issuecomment-408036848
-// W5500 does seem to work at 12 MHz.  Delete this if only using W5500
-#if defined(__SAMD21G18A__)
-#undef SPI_ETHERNET_SETTINGS
-#define SPI_ETHERNET_SETTINGS SPISettings(8000000, MSBFIRST, SPI_MODE0)
+#error "Ethernet.h must be included before w5500.h"
 #endif
 
 
@@ -117,13 +95,13 @@ public:
   static const uint8_t RAW  = 255;
 };
 
-enum W5100Linkstatus {
+enum W5500Linkstatus {
   UNKNOWN,
   LINK_ON,
   LINK_OFF
 };
 
-class W5100Class {
+class W5500Class {
 
 public:
   static uint8_t init(void);
@@ -146,7 +124,7 @@ public:
   static void execCmdSn(SOCKET s, SockCMD _cmd);
 
 
-  // W5100 Registers
+  // W5500 Registers
   // ---------------
 //private:
 public:
@@ -187,42 +165,38 @@ public:
   static uint16_t read##name(uint8_t *_buff) {    \
     return read(address, _buff, size);            \
   }
-  static W5100Linkstatus getLinkStatus();
+  static W5500Linkstatus getLinkStatus();
 
 public:
-  __GP_REGISTER8 (MR,     0x0000);    // Mode
-  __GP_REGISTER_N(GAR,    0x0001, 4); // Gateway IP address
-  __GP_REGISTER_N(SUBR,   0x0005, 4); // Subnet mask address
-  __GP_REGISTER_N(SHAR,   0x0009, 6); // Source MAC address
-  __GP_REGISTER_N(SIPR,   0x000F, 4); // Source IP address
-  __GP_REGISTER8 (IR,     0x0015);    // Interrupt
-  __GP_REGISTER8 (IMR,    0x0016);    // Interrupt Mask
-  __GP_REGISTER16(RTR,    0x0017);    // Timeout address
-  __GP_REGISTER8 (RCR,    0x0019);    // Retry count
-  __GP_REGISTER8 (RMSR,   0x001A);    // Receive memory size (W5100 only)
-  __GP_REGISTER8 (TMSR,   0x001B);    // Transmit memory size (W5100 only)
-  __GP_REGISTER8 (PATR,   0x001C);    // Authentication type address in PPPoE mode
-  __GP_REGISTER8 (PTIMER, 0x0028);    // PPP LCP Request Timer
-  __GP_REGISTER8 (PMAGIC, 0x0029);    // PPP LCP Magic Number
-  __GP_REGISTER_N(UIPR,   0x002A, 4); // Unreachable IP address in UDP mode (W5100 only)
-  __GP_REGISTER16(UPORT,  0x002E);    // Unreachable Port address in UDP mode (W5100 only)
-  __GP_REGISTER8 (VERSIONR_W5200,0x001F);   // Chip Version Register (W5200 only)
-  __GP_REGISTER8 (VERSIONR_W5500,0x0039);   // Chip Version Register (W5500 only)
-  __GP_REGISTER8 (PSTATUS_W5200,     0x0035);    // PHY Status
-  __GP_REGISTER8 (PHYCFGR_W5500,     0x002E);    // PHY Configuration register, default: 10111xxx
+  __GP_REGISTER8 (MR,      0x0000);    // Mode
+  __GP_REGISTER_N(GAR,     0x0001, 4); // Gateway IP address
+  __GP_REGISTER_N(SUBR,    0x0005, 4); // Subnet mask address
+  __GP_REGISTER_N(SHAR,    0x0009, 6); // Source MAC address
+  __GP_REGISTER_N(SIPR,    0x000F, 4); // Source IP address
+  __GP_REGISTER8 (IR,      0x0015);    // Interrupt
+  __GP_REGISTER8 (IMR,     0x0016);    // Interrupt Mask
+  __GP_REGISTER16(RTR,     0x0019);    // Timeout address
+  __GP_REGISTER8 (RMSR,    0x001A);    // Receive memory size (W5500 only)
+  __GP_REGISTER8 (RCR,     0x001B);    // Retry count
+  __GP_REGISTER8 (PTIMER,  0x001C);    // PPP LCP Request Timer
+  __GP_REGISTER8 (PMAGIC,  0x001D);    // PPP LCP Magic Number
+  __GP_REGISTER_N(PHAR,    0x001E, 6); // PPP Destination MAC address
+  __GP_REGISTER16(PSID,    0x0024);    // PPP Session ID
+  __GP_REGISTER16(PMRU,    0x0026);    // PPP Maximum Segment Size
+  __GP_REGISTER_N(UIPR,    0x0028, 4); // Unreachable IP address in UDP mode (W5500 only)
+  __GP_REGISTER16(UPORT,   0x002C);    // Unreachable Port address in UDP mode (W5500 only)
+  __GP_REGISTER8 (PHYCFGR, 0x002E);    // PHY Configuration register, default: 10111xxx
+  __GP_REGISTER8 (VERSIONR,0x0039);    // Chip Version Register (W5500 only)
 
 
 #undef __GP_REGISTER8
 #undef __GP_REGISTER16
 #undef __GP_REGISTER_N
 
-  // W5100 Socket registers
+  // W5500 Socket registers
   // ----------------------
 private:
   static uint16_t CH_BASE(void) {
-    //if (chip == 55) return 0x1000;
-    //if (chip == 52) return 0x4000;
-    //return 0x0400;
     return CH_BASE_MSB << 8;
   }
   static uint8_t CH_BASE_MSB; // 1 redundant byte, saves ~80 bytes code on AVR
@@ -296,15 +270,11 @@ public:
 
 
 private:
-  static uint8_t chip;
   static uint8_t ss_pin;
   static uint8_t softReset(void);
-  static uint8_t isW5100(void);
-  static uint8_t isW5200(void);
   static uint8_t isW5500(void);
 
 public:
-  static uint8_t getChip(void) { return chip; }
 #ifdef ETHERNET_LARGE_BUFFERS
   static uint16_t SSIZE;
   static uint16_t SMASK;
@@ -313,124 +283,31 @@ public:
   static const uint16_t SMASK = 0x07FF;
 #endif
   static uint16_t SBASE(uint8_t socknum) {
-    if (chip == 51) {
-      return socknum * SSIZE + 0x4000;
-    } else {
       return socknum * SSIZE + 0x8000;
-    }
   }
   static uint16_t RBASE(uint8_t socknum) {
-    if (chip == 51) {
-      return socknum * SSIZE + 0x6000;
-    } else {
       return socknum * SSIZE + 0xC000;
-    }
   }
 
   static bool hasOffsetAddressMapping(void) {
-    if (chip == 55) return true;
-    return false;
+    return true;
   }
-  static void setSS(uint8_t pin) { ss_pin = pin; }
+  static void setSSpin(uint8_t pin) { ss_pin = pin; }
 
 private:
-#if defined(__AVR__)
-	static volatile uint8_t *ss_pin_reg;
-	static uint8_t ss_pin_mask;
+#if 1 //defined(__AVR__)
+	static volatile uint32 *ss_pin_reg;
+	static uint32 ss_pin_mask;
 	inline static void initSS() {
 		ss_pin_reg = portOutputRegister(digitalPinToPort(ss_pin));
 		ss_pin_mask = digitalPinToBitMask(ss_pin);
 		pinMode(ss_pin, OUTPUT);
 	}
 	inline static void setSS() {
-		*(ss_pin_reg) &= ~ss_pin_mask;
+		*(ss_pin_reg) |= ss_pin_mask<<16; // set low
 	}
 	inline static void resetSS() {
-		*(ss_pin_reg) |= ss_pin_mask;
-	}
-#elif defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK66FX1M0__) || defined(__MK64FX512__)
-	static volatile uint8_t *ss_pin_reg;
-	inline static void initSS() {
-		ss_pin_reg = portOutputRegister(ss_pin);
-		pinMode(ss_pin, OUTPUT);
-	}
-	inline static void setSS() {
-		*(ss_pin_reg+256) = 1;
-	}
-	inline static void resetSS() {
-		*(ss_pin_reg+128) = 1;
-	}
-#elif defined(__MKL26Z64__)
-	static volatile uint8_t *ss_pin_reg;
-	static uint8_t ss_pin_mask;
-	inline static void initSS() {
-		ss_pin_reg = portOutputRegister(digitalPinToPort(ss_pin));
-		ss_pin_mask = digitalPinToBitMask(ss_pin);
-		pinMode(ss_pin, OUTPUT);
-	}
-	inline static void setSS() {
-		*(ss_pin_reg+8) = ss_pin_mask;
-	}
-	inline static void resetSS() {
-		*(ss_pin_reg+4) = ss_pin_mask;
-	}
-#elif defined(__SAM3X8E__) || defined(__SAM3A8C__) || defined(__SAM3A4C__)
-	static volatile uint32_t *ss_pin_reg;
-	static uint32_t ss_pin_mask;
-	inline static void initSS() {
-		ss_pin_reg = &(digitalPinToPort(ss_pin)->PIO_PER);
-		ss_pin_mask = digitalPinToBitMask(ss_pin);
-		pinMode(ss_pin, OUTPUT);
-	}
-	inline static void setSS() {
-		*(ss_pin_reg+13) = ss_pin_mask;
-	}
-	inline static void resetSS() {
-		*(ss_pin_reg+12) = ss_pin_mask;
-	}
-#elif defined(__PIC32MX__)
-	static volatile uint32_t *ss_pin_reg;
-	static uint32_t ss_pin_mask;
-	inline static void initSS() {
-		ss_pin_reg = portModeRegister(digitalPinToPort(ss_pin));
-		ss_pin_mask = digitalPinToBitMask(ss_pin);
-		pinMode(ss_pin, OUTPUT);
-	}
-	inline static void setSS() {
-		*(ss_pin_reg+8+1) = ss_pin_mask;
-	}
-	inline static void resetSS() {
-		*(ss_pin_reg+8+2) = ss_pin_mask;
-	}
-
-#elif defined(ARDUINO_ARCH_ESP8266)
-	static volatile uint32_t *ss_pin_reg;
-	static uint32_t ss_pin_mask;
-	inline static void initSS() {
-		ss_pin_reg = (volatile uint32_t*)GPO;
-		ss_pin_mask = 1 << ss_pin;
-		pinMode(ss_pin, OUTPUT);
-	}
-	inline static void setSS() {
-		GPOC = ss_pin_mask;
-	}
-	inline static void resetSS() {
-		GPOS = ss_pin_mask;
-	}
-
-#elif defined(__SAMD21G18A__)
-	static volatile uint32_t *ss_pin_reg;
-	static uint32_t ss_pin_mask;
-	inline static void initSS() {
-		ss_pin_reg = portModeRegister(digitalPinToPort(ss_pin));
-		ss_pin_mask = digitalPinToBitMask(ss_pin);
-		pinMode(ss_pin, OUTPUT);
-	}
-	inline static void setSS() {
-		*(ss_pin_reg+5) = ss_pin_mask;
-	}
-	inline static void resetSS() {
-		*(ss_pin_reg+6) = ss_pin_mask;
+		*(ss_pin_reg) |= ss_pin_mask; // set high
 	}
 #else
 	inline static void initSS() {
@@ -445,7 +322,7 @@ private:
 #endif
 };
 
-extern W5100Class W5100;
+extern W5500Class W5500;
 
 
 

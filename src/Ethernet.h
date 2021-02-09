@@ -29,8 +29,8 @@
 // was removed to avoid possible conflict with the C library header files.
 
 
-// Configure the maximum number of sockets to support.  W5100 chips can have
-// up to 4 sockets.  W5200 & W5500 can have up to 8 sockets.  Several bytes
+// Configure the maximum number of sockets to support.
+// W5500 can have up to 8 sockets.  Several bytes
 // of RAM are used for each socket.  Reducing the maximum can save RAM, but
 // you are limited to fewer simultaneous connections.
 #if defined(RAMEND) && defined(RAMSTART) && ((RAMEND - RAMSTART) <= 2048)
@@ -52,18 +52,12 @@
 #include "Client.h"
 #include "Server.h"
 #include "Udp.h"
+#include "utility/w5500.h"
 
 enum EthernetLinkStatus {
 	Unknown,
 	LinkON,
 	LinkOFF
-};
-
-enum EthernetHardwareStatus {
-	EthernetNoHardware,
-	EthernetW5100,
-	EthernetW5200,
-	EthernetW5500
 };
 
 class EthernetUDP;
@@ -82,14 +76,13 @@ public:
 	static int begin(uint8_t *mac, unsigned long timeout = 60000, unsigned long responseTimeout = 4000);
 	static int maintain();
 	static EthernetLinkStatus linkStatus();
-	static EthernetHardwareStatus hardwareStatus();
 
 	// Manaul configuration
 	static void begin(uint8_t *mac, IPAddress ip);
 	static void begin(uint8_t *mac, IPAddress ip, IPAddress dns);
 	static void begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress gateway);
 	static void begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet);
-	static void init(uint8_t sspin = 10);
+	static void init(uint8_t sspin = PA4) { W5500.setSSpin(sspin); }
 
 	static void MACAddress(uint8_t *mac_address);
 	static IPAddress localIP();
@@ -149,6 +142,7 @@ extern EthernetClass Ethernet;
 
 #define UDP_TX_PACKET_MAX_SIZE 24
 
+//-----------------------------------------------------------------------------
 class EthernetUDP : public UDP {
 private:
 	uint16_t _port; // local port to listen on
@@ -178,7 +172,7 @@ public:
 	// Returns 1 if the packet was sent successfully, 0 if there was an error
 	virtual int endPacket();
 	// Write a single byte into the packet
-	virtual size_t write(uint8_t);
+	virtual size_t write(uint8_t b) { return write(&b, 1); }
 	// Write size bytes from buffer into the packet
 	virtual size_t write(const uint8_t *buffer, size_t size);
 
@@ -208,9 +202,7 @@ public:
 	virtual uint16_t localPort() { return _port; }
 };
 
-
-
-
+//-----------------------------------------------------------------------------
 class EthernetClient : public Client {
 public:
 	EthernetClient() : sockindex(MAX_SOCK_NUM), _timeout(1000) { }
@@ -249,16 +241,18 @@ private:
 	uint16_t _timeout;
 };
 
-
+//-----------------------------------------------------------------------------
 class EthernetServer : public Server {
 private:
 	uint16_t _port;
 public:
+//	EthernetServer() {}
 	EthernetServer(uint16_t port) : _port(port) { }
 	EthernetClient available();
 	EthernetClient accept();
 	virtual void begin();
-	virtual size_t write(uint8_t);
+	virtual void begin(uint16_t port) { _port = port; begin(); }
+	virtual size_t write(uint8_t b) { return write(&b, 1); };
 	virtual size_t write(const uint8_t *buf, size_t size);
 	virtual operator bool();
 	using Print::write;
@@ -268,7 +262,7 @@ public:
 	static uint16_t server_port[MAX_SOCK_NUM];
 };
 
-
+//-----------------------------------------------------------------------------
 class DhcpClass {
 private:
 	uint32_t _dhcpInitialTransactionId;
@@ -305,11 +299,12 @@ private:
 
 	uint8_t parseDHCPResponse(unsigned long responseTimeout, uint32_t& transactionId);
 public:
-	IPAddress getLocalIp();
-	IPAddress getSubnetMask();
-	IPAddress getGatewayIp();
-	IPAddress getDhcpServerIp();
-	IPAddress getDnsServerIp();
+	IPAddress getLocalIp() { return IPAddress(_dhcpLocalIp); }
+	IPAddress getSubnetMask() { return IPAddress(_dhcpSubnetMask); }
+	IPAddress getGatewayIp() { return IPAddress(_dhcpGatewayIp); }
+	IPAddress getDhcpServerIp() { return IPAddress(_dhcpDhcpServerIp); }
+	IPAddress getDnsServerIp() { return IPAddress(_dhcpDnsServerIp); };
+
 
 	int beginWithDHCP(uint8_t *, unsigned long timeout = 60000, unsigned long responseTimeout = 4000);
 	int checkLease();

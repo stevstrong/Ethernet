@@ -20,7 +20,7 @@
 
 #include <Arduino.h>
 #include "Ethernet.h"
-#include "utility/w5100.h"
+#include "utility/w5500.h"
 
 #if ARDUINO >= 156 && !defined(ARDUINO_ARCH_PIC32)
 extern void yield(void);
@@ -52,29 +52,22 @@ static void read_data(uint8_t s, uint16_t src, uint8_t *dst, uint16_t len);
 /*          Socket management            */
 /*****************************************/
 
-
+//-----------------------------------------------------------------------------
 void EthernetClass::socketPortRand(uint16_t n)
 {
 	n &= 0x3FFF;
 	local_port ^= n;
 	//Serial.printf("socketPortRand %d, srcport=%d\n", n, local_port);
 }
-
+//-----------------------------------------------------------------------------
 uint8_t EthernetClass::socketBegin(uint8_t protocol, uint16_t port)
 {
-	uint8_t s, status[MAX_SOCK_NUM], chip, maxindex=MAX_SOCK_NUM;
+	uint8_t s, status[MAX_SOCK_NUM], maxindex=MAX_SOCK_NUM;
 
-	// first check hardware compatibility
-	chip = W5100.getChip();
-	if (!chip) return MAX_SOCK_NUM; // immediate error if no hardware detected
-#if MAX_SOCK_NUM > 4
-	if (chip == 51) maxindex = 4; // W5100 chip never supports more than 4 sockets
-#endif
 	//Serial.printf("W5000socket begin, protocol=%d, port=%d\n", protocol, port);
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	// look at all the hardware sockets, use any that are closed (unused)
 	for (s=0; s < maxindex; s++) {
-		status[s] = W5100.readSnSR(s);
+		status[s] = W5500.readSnSR(s);
 		if (status[s] == SnSR::CLOSED) goto makesocket;
 	}
 	//Serial.printf("W5000socket step2\n");
@@ -95,50 +88,41 @@ uint8_t EthernetClass::socketBegin(uint8_t protocol, uint16_t port)
 		if (stat == SnSR::CLOSE_WAIT) goto closemakesocket;
 	}
 #endif
-	SPI.endTransaction();
 	return MAX_SOCK_NUM; // all sockets are in use
 closemakesocket:
 	//Serial.printf("W5000socket close\n");
-	W5100.execCmdSn(s, Sock_CLOSE);
+	W5500.execCmdSn(s, Sock_CLOSE);
 makesocket:
 	//Serial.printf("W5000socket %d\n", s);
 	EthernetServer::server_port[s] = 0;
 	delayMicroseconds(250); // TODO: is this needed??
-	W5100.writeSnMR(s, protocol);
-	W5100.writeSnIR(s, 0xFF);
+	W5500.writeSnMR(s, protocol);
+	W5500.writeSnIR(s, 0xFF);
 	if (port > 0) {
-		W5100.writeSnPORT(s, port);
+		W5500.writeSnPORT(s, port);
 	} else {
 		// if don't set the source port, set local_port number.
 		if (++local_port < 49152) local_port = 49152;
-		W5100.writeSnPORT(s, local_port);
+		W5500.writeSnPORT(s, local_port);
 	}
-	W5100.execCmdSn(s, Sock_OPEN);
+	W5500.execCmdSn(s, Sock_OPEN);
 	state[s].RX_RSR = 0;
-	state[s].RX_RD  = W5100.readSnRX_RD(s); // always zero?
+	state[s].RX_RD  = W5500.readSnRX_RD(s); // always zero?
 	state[s].RX_inc = 0;
 	state[s].TX_FSR = 0;
-	//Serial.printf("W5000socket prot=%d, RX_RD=%d\n", W5100.readSnMR(s), state[s].RX_RD);
-	SPI.endTransaction();
+	//Serial.printf("W5000socket prot=%d, RX_RD=%d\n", W5500.readSnMR(s), state[s].RX_RD);
 	return s;
 }
-
+//-----------------------------------------------------------------------------
 // multicast version to set fields before open  thd
 uint8_t EthernetClass::socketBeginMulticast(uint8_t protocol, IPAddress ip, uint16_t port)
 {
-	uint8_t s, status[MAX_SOCK_NUM], chip, maxindex=MAX_SOCK_NUM;
+	uint8_t s, status[MAX_SOCK_NUM], maxindex=MAX_SOCK_NUM;
 
-	// first check hardware compatibility
-	chip = W5100.getChip();
-	if (!chip) return MAX_SOCK_NUM; // immediate error if no hardware detected
-#if MAX_SOCK_NUM > 4
-	if (chip == 51) maxindex = 4; // W5100 chip never supports more than 4 sockets
-#endif
 	//Serial.printf("W5000socket begin, protocol=%d, port=%d\n", protocol, port);
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	// look at all the hardware sockets, use any that are closed (unused)
 	for (s=0; s < maxindex; s++) {
-		status[s] = W5100.readSnSR(s);
+		status[s] = W5500.readSnSR(s);
 		if (status[s] == SnSR::CLOSED) goto makesocket;
 	}
 	//Serial.printf("W5000socket step2\n");
@@ -159,98 +143,85 @@ uint8_t EthernetClass::socketBeginMulticast(uint8_t protocol, IPAddress ip, uint
 		if (stat == SnSR::CLOSE_WAIT) goto closemakesocket;
 	}
 #endif
-	SPI.endTransaction();
 	return MAX_SOCK_NUM; // all sockets are in use
 closemakesocket:
 	//Serial.printf("W5000socket close\n");
-	W5100.execCmdSn(s, Sock_CLOSE);
+	W5500.execCmdSn(s, Sock_CLOSE);
 makesocket:
 	//Serial.printf("W5000socket %d\n", s);
 	EthernetServer::server_port[s] = 0;
 	delayMicroseconds(250); // TODO: is this needed??
-	W5100.writeSnMR(s, protocol);
-	W5100.writeSnIR(s, 0xFF);
+	W5500.writeSnMR(s, protocol);
+	W5500.writeSnIR(s, 0xFF);
 	if (port > 0) {
-		W5100.writeSnPORT(s, port);
+		W5500.writeSnPORT(s, port);
 	} else {
 		// if don't set the source port, set local_port number.
 		if (++local_port < 49152) local_port = 49152;
-		W5100.writeSnPORT(s, local_port);
+		W5500.writeSnPORT(s, local_port);
 	}
 	// Calculate MAC address from Multicast IP Address
     	byte mac[] = {  0x01, 0x00, 0x5E, 0x00, 0x00, 0x00 };
     	mac[3] = ip[1] & 0x7F;
     	mac[4] = ip[2];
     	mac[5] = ip[3];
-    	W5100.writeSnDIPR(s, ip.raw_address());   //239.255.0.1
-    	W5100.writeSnDPORT(s, port);
-    	W5100.writeSnDHAR(s, mac);
-	W5100.execCmdSn(s, Sock_OPEN);
+    	W5500.writeSnDIPR(s, ip.raw_address());   //239.255.0.1
+    	W5500.writeSnDPORT(s, port);
+    	W5500.writeSnDHAR(s, mac);
+	W5500.execCmdSn(s, Sock_OPEN);
 	state[s].RX_RSR = 0;
-	state[s].RX_RD  = W5100.readSnRX_RD(s); // always zero?
+	state[s].RX_RD  = W5500.readSnRX_RD(s); // always zero?
 	state[s].RX_inc = 0;
 	state[s].TX_FSR = 0;
-	//Serial.printf("W5000socket prot=%d, RX_RD=%d\n", W5100.readSnMR(s), state[s].RX_RD);
-	SPI.endTransaction();
+	//Serial.printf("W5000socket prot=%d, RX_RD=%d\n", W5500.readSnMR(s), state[s].RX_RD);
 	return s;
 }
+//-----------------------------------------------------------------------------
 // Return the socket's status
-//
+//-----------------------------------------------------------------------------
 uint8_t EthernetClass::socketStatus(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	uint8_t status = W5100.readSnSR(s);
-	SPI.endTransaction();
+	uint8_t status = W5500.readSnSR(s);
 	return status;
 }
-
+//-----------------------------------------------------------------------------
 // Immediately close.  If a TCP connection is established, the
 // remote host is left unaware we closed.
-//
+//-----------------------------------------------------------------------------
 void EthernetClass::socketClose(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	W5100.execCmdSn(s, Sock_CLOSE);
-	SPI.endTransaction();
+	W5500.execCmdSn(s, Sock_CLOSE);
 }
 
-
+//-----------------------------------------------------------------------------
 // Place the socket in listening (server) mode
-//
+//-----------------------------------------------------------------------------
 uint8_t EthernetClass::socketListen(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	if (W5100.readSnSR(s) != SnSR::INIT) {
-		SPI.endTransaction();
+	if (W5500.readSnSR(s) != SnSR::INIT) {
 		return 0;
 	}
-	W5100.execCmdSn(s, Sock_LISTEN);
-	SPI.endTransaction();
+	W5500.execCmdSn(s, Sock_LISTEN);
 	return 1;
 }
 
-
+//-----------------------------------------------------------------------------
 // establish a TCP connection in Active (client) mode.
-//
+//-----------------------------------------------------------------------------
 void EthernetClass::socketConnect(uint8_t s, uint8_t * addr, uint16_t port)
 {
 	// set destination IP
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	W5100.writeSnDIPR(s, addr);
-	W5100.writeSnDPORT(s, port);
-	W5100.execCmdSn(s, Sock_CONNECT);
-	SPI.endTransaction();
+	W5500.writeSnDIPR(s, addr);
+	W5500.writeSnDPORT(s, port);
+	W5500.execCmdSn(s, Sock_CONNECT);
 }
 
-
-
+//-----------------------------------------------------------------------------
 // Gracefully disconnect a TCP connection.
-//
+//-----------------------------------------------------------------------------
 void EthernetClass::socketDisconnect(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	W5100.execCmdSn(s, Sock_DISCON);
-	SPI.endTransaction();
+	W5500.execCmdSn(s, Sock_DISCON);
 }
 
 
@@ -259,26 +230,26 @@ void EthernetClass::socketDisconnect(uint8_t s)
 /*    Socket Data Receive Functions      */
 /*****************************************/
 
-
+//-----------------------------------------------------------------------------
 static uint16_t getSnRX_RSR(uint8_t s)
 {
 #if 1
-        uint16_t val, prev;
+	uint16_t val, prev;
 
-        prev = W5100.readSnRX_RSR(s);
-        while (1) {
-                val = W5100.readSnRX_RSR(s);
-                if (val == prev) {
+	prev = W5500.readSnRX_RSR(s);
+	while (1) {
+		val = W5500.readSnRX_RSR(s);
+		if (val == prev) {
 			return val;
 		}
-                prev = val;
-        }
+		prev = val;
+	}
 #else
-	uint16_t val = W5100.readSnRX_RSR(s);
+	uint16_t val = W5500.readSnRX_RSR(s);
 	return val;
 #endif
 }
-
+//-----------------------------------------------------------------------------
 static void read_data(uint8_t s, uint16_t src, uint8_t *dst, uint16_t len)
 {
 	uint16_t size;
@@ -286,26 +257,25 @@ static void read_data(uint8_t s, uint16_t src, uint8_t *dst, uint16_t len)
 	uint16_t src_ptr;
 
 	//Serial.printf("read_data, len=%d, at:%d\n", len, src);
-	src_mask = (uint16_t)src & W5100.SMASK;
-	src_ptr = W5100.RBASE(s) + src_mask;
+	src_mask = (uint16_t)src & W5500.SMASK;
+	src_ptr = W5500.RBASE(s) + src_mask;
 
-	if (W5100.hasOffsetAddressMapping() || src_mask + len <= W5100.SSIZE) {
-		W5100.read(src_ptr, dst, len);
+	if (W5500.hasOffsetAddressMapping() || src_mask + len <= W5500.SSIZE) {
+		W5500.read(src_ptr, dst, len);
 	} else {
-		size = W5100.SSIZE - src_mask;
-		W5100.read(src_ptr, dst, size);
+		size = W5500.SSIZE - src_mask;
+		W5500.read(src_ptr, dst, size);
 		dst += size;
-		W5100.read(W5100.RBASE(s), dst, len - size);
+		W5500.read(W5500.RBASE(s), dst, len - size);
 	}
 }
-
+//-----------------------------------------------------------------------------
 // Receive data.  Returns size, or -1 for no data, or 0 if connection closed
-//
+//-----------------------------------------------------------------------------
 int EthernetClass::socketRecv(uint8_t s, uint8_t *buf, int16_t len)
 {
 	// Check how much data is available
 	int ret = state[s].RX_RSR;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	if (ret < len) {
 		uint16_t rsr = getSnRX_RSR(s);
 		ret = rsr - state[s].RX_inc;
@@ -314,7 +284,7 @@ int EthernetClass::socketRecv(uint8_t s, uint8_t *buf, int16_t len)
 	}
 	if (ret == 0) {
 		// No data available.
-		uint8_t status = W5100.readSnSR(s);
+		uint8_t status = W5500.readSnSR(s);
 		if ( status == SnSR::LISTEN || status == SnSR::CLOSED ||
 		  status == SnSR::CLOSE_WAIT ) {
 			// The remote end has closed its side of the connection,
@@ -334,42 +304,37 @@ int EthernetClass::socketRecv(uint8_t s, uint8_t *buf, int16_t len)
 		uint16_t inc = state[s].RX_inc + ret;
 		if (inc >= 250 || state[s].RX_RSR == 0) {
 			state[s].RX_inc = 0;
-			W5100.writeSnRX_RD(s, ptr);
-			W5100.execCmdSn(s, Sock_RECV);
+			W5500.writeSnRX_RD(s, ptr);
+			W5500.execCmdSn(s, Sock_RECV);
 			//Serial.printf("Sock_RECV cmd, RX_RD=%d, RX_RSR=%d\n",
 			//  state[s].RX_RD, state[s].RX_RSR);
 		} else {
 			state[s].RX_inc = inc;
 		}
 	}
-	SPI.endTransaction();
 	//Serial.printf("socketRecv, ret=%d\n", ret);
 	return ret;
 }
-
+//-----------------------------------------------------------------------------
 uint16_t EthernetClass::socketRecvAvailable(uint8_t s)
 {
 	uint16_t ret = state[s].RX_RSR;
 	if (ret == 0) {
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 		uint16_t rsr = getSnRX_RSR(s);
-		SPI.endTransaction();
 		ret = rsr - state[s].RX_inc;
 		state[s].RX_RSR = ret;
 		//Serial.printf("sockRecvAvailable s=%d, RX_RSR=%d\n", s, ret);
 	}
 	return ret;
 }
-
+//-----------------------------------------------------------------------------
 // get the first byte in the receive queue (no checking)
-//
+//-----------------------------------------------------------------------------
 uint8_t EthernetClass::socketPeek(uint8_t s)
 {
 	uint8_t b;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	uint16_t ptr = state[s].RX_RD;
-	W5100.read((ptr & W5100.SMASK) + W5100.RBASE(s), &b, 1);
-	SPI.endTransaction();
+	W5500.read((ptr & W5500.SMASK) + W5500.RBASE(s), &b, 1);
 	return b;
 }
 
@@ -378,14 +343,14 @@ uint8_t EthernetClass::socketPeek(uint8_t s)
 /*****************************************/
 /*    Socket Data Transmit Functions     */
 /*****************************************/
-
+//-----------------------------------------------------------------------------
 static uint16_t getSnTX_FSR(uint8_t s)
 {
         uint16_t val, prev;
 
-        prev = W5100.readSnTX_FSR(s);
+        prev = W5500.readSnTX_FSR(s);
         while (1) {
-                val = W5100.readSnTX_FSR(s);
+                val = W5500.readSnTX_FSR(s);
                 if (val == prev) {
 			state[s].TX_FSR = val;
 			return val;
@@ -393,28 +358,27 @@ static uint16_t getSnTX_FSR(uint8_t s)
                 prev = val;
         }
 }
-
-
+//-----------------------------------------------------------------------------
 static void write_data(uint8_t s, uint16_t data_offset, const uint8_t *data, uint16_t len)
 {
-	uint16_t ptr = W5100.readSnTX_WR(s);
+	uint16_t ptr = W5500.readSnTX_WR(s);
 	ptr += data_offset;
-	uint16_t offset = ptr & W5100.SMASK;
-	uint16_t dstAddr = offset + W5100.SBASE(s);
+	uint16_t offset = ptr & W5500.SMASK;
+	uint16_t dstAddr = offset + W5500.SBASE(s);
 
-	if (W5100.hasOffsetAddressMapping() || offset + len <= W5100.SSIZE) {
-		W5100.write(dstAddr, data, len);
+	if (W5500.hasOffsetAddressMapping() || offset + len <= W5500.SSIZE) {
+		W5500.write(dstAddr, data, len);
 	} else {
 		// Wrap around circular buffer
-		uint16_t size = W5100.SSIZE - offset;
-		W5100.write(dstAddr, data, size);
-		W5100.write(W5100.SBASE(s), data + size, len - size);
+		uint16_t size = W5500.SSIZE - offset;
+		W5500.write(dstAddr, data, size);
+		W5500.write(W5500.SBASE(s), data + size, len - size);
 	}
 	ptr += len;
-	W5100.writeSnTX_WR(s, ptr);
+	W5500.writeSnTX_WR(s, ptr);
 }
 
-
+//-----------------------------------------------------------------------------
 /**
  * @brief	This function used to send the data in TCP mode
  * @return	1 for success else 0.
@@ -425,18 +389,16 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 	uint16_t ret=0;
 	uint16_t freesize=0;
 
-	if (len > W5100.SSIZE) {
-		ret = W5100.SSIZE; // check size not to exceed MAX size.
+	if (len > W5500.SSIZE) {
+		ret = W5500.SSIZE; // check size not to exceed MAX size.
 	} else {
 		ret = len;
 	}
 
 	// if freebuf is available, start.
 	do {
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 		freesize = getSnTX_FSR(s);
-		status = W5100.readSnSR(s);
-		SPI.endTransaction();
+		status = W5500.readSnSR(s);
 		if ((status != SnSR::ESTABLISHED) && (status != SnSR::CLOSE_WAIT)) {
 			ret = 0;
 			break;
@@ -445,46 +407,38 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 	} while (freesize < ret);
 
 	// copy data
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	write_data(s, 0, (uint8_t *)buf, ret);
-	W5100.execCmdSn(s, Sock_SEND);
+	W5500.execCmdSn(s, Sock_SEND);
 
 	/* +2008.01 bj */
-	while ( (W5100.readSnIR(s) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
+	while ( (W5500.readSnIR(s) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
 		/* m2008.01 [bj] : reduce code */
-		if ( W5100.readSnSR(s) == SnSR::CLOSED ) {
-			SPI.endTransaction();
+		if ( W5500.readSnSR(s) == SnSR::CLOSED ) {
 			return 0;
 		}
-		SPI.endTransaction();
 		yield();
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	}
 	/* +2008.01 bj */
-	W5100.writeSnIR(s, SnIR::SEND_OK);
-	SPI.endTransaction();
+	W5500.writeSnIR(s, SnIR::SEND_OK);
 	return ret;
 }
-
+//-----------------------------------------------------------------------------
 uint16_t EthernetClass::socketSendAvailable(uint8_t s)
 {
 	uint8_t status=0;
 	uint16_t freesize=0;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	freesize = getSnTX_FSR(s);
-	status = W5100.readSnSR(s);
-	SPI.endTransaction();
+	status = W5500.readSnSR(s);
 	if ((status == SnSR::ESTABLISHED) || (status == SnSR::CLOSE_WAIT)) {
 		return freesize;
 	}
 	return 0;
 }
-
+//-----------------------------------------------------------------------------
 uint16_t EthernetClass::socketBufferData(uint8_t s, uint16_t offset, const uint8_t* buf, uint16_t len)
 {
 	//Serial.printf("  bufferData, offset=%d, len=%d\n", offset, len);
 	uint16_t ret =0;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	uint16_t txfree = getSnTX_FSR(s);
 	if (len > txfree) {
 		ret = txfree; // check size not to exceed MAX size.
@@ -492,45 +446,37 @@ uint16_t EthernetClass::socketBufferData(uint8_t s, uint16_t offset, const uint8
 		ret = len;
 	}
 	write_data(s, offset, buf, ret);
-	SPI.endTransaction();
 	return ret;
 }
-
+//-----------------------------------------------------------------------------
 bool EthernetClass::socketStartUDP(uint8_t s, uint8_t* addr, uint16_t port)
 {
 	if ( ((addr[0] == 0x00) && (addr[1] == 0x00) && (addr[2] == 0x00) && (addr[3] == 0x00)) ||
 	  ((port == 0x00)) ) {
 		return false;
 	}
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	W5100.writeSnDIPR(s, addr);
-	W5100.writeSnDPORT(s, port);
-	SPI.endTransaction();
+	W5500.writeSnDIPR(s, addr);
+	W5500.writeSnDPORT(s, port);
 	return true;
 }
-
+//-----------------------------------------------------------------------------
 bool EthernetClass::socketSendUDP(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	W5100.execCmdSn(s, Sock_SEND);
+	W5500.execCmdSn(s, Sock_SEND);
 
 	/* +2008.01 bj */
-	while ( (W5100.readSnIR(s) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
-		if (W5100.readSnIR(s) & SnIR::TIMEOUT) {
+	while ( (W5500.readSnIR(s) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
+		if (W5500.readSnIR(s) & SnIR::TIMEOUT) {
 			/* +2008.01 [bj]: clear interrupt */
-			W5100.writeSnIR(s, (SnIR::SEND_OK|SnIR::TIMEOUT));
-			SPI.endTransaction();
+			W5500.writeSnIR(s, (SnIR::SEND_OK|SnIR::TIMEOUT));
 			//Serial.printf("sendUDP timeout\n");
 			return false;
 		}
-		SPI.endTransaction();
 		yield();
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	}
 
 	/* +2008.01 bj */
-	W5100.writeSnIR(s, SnIR::SEND_OK);
-	SPI.endTransaction();
+	W5500.writeSnIR(s, SnIR::SEND_OK);
 
 	//Serial.printf("sendUDP ok\n");
 	/* Sent ok */

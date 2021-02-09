@@ -29,9 +29,10 @@
 #include <Arduino.h>
 #include "Ethernet.h"
 #include "Dns.h"
-#include "utility/w5100.h"
+#include "utility/w5500.h"
 
 /* Start EthernetUDP socket, listening at local port PORT */
+//-----------------------------------------------------------------------------
 uint8_t EthernetUDP::begin(uint16_t port)
 {
 	if (sockindex < MAX_SOCK_NUM) Ethernet.socketClose(sockindex);
@@ -44,12 +45,14 @@ uint8_t EthernetUDP::begin(uint16_t port)
 
 /* return number of bytes available in the current packet,
    will return zero if parsePacket hasn't been called yet */
+//-----------------------------------------------------------------------------
 int EthernetUDP::available()
 {
 	return _remaining;
 }
 
 /* Release any resources being used by this EthernetUDP instance */
+//-----------------------------------------------------------------------------
 void EthernetUDP::stop()
 {
 	if (sockindex < MAX_SOCK_NUM) {
@@ -57,7 +60,7 @@ void EthernetUDP::stop()
 		sockindex = MAX_SOCK_NUM;
 	}
 }
-
+//-----------------------------------------------------------------------------
 int EthernetUDP::beginPacket(const char *host, uint16_t port)
 {
 	// Look up the host first
@@ -70,24 +73,19 @@ int EthernetUDP::beginPacket(const char *host, uint16_t port)
 	if (ret != 1) return ret;
 	return beginPacket(remote_addr, port);
 }
-
+//-----------------------------------------------------------------------------
 int EthernetUDP::beginPacket(IPAddress ip, uint16_t port)
 {
 	_offset = 0;
 	//Serial.printf("UDP beginPacket\n");
 	return Ethernet.socketStartUDP(sockindex, rawIPAddress(ip), port);
 }
-
+//-----------------------------------------------------------------------------
 int EthernetUDP::endPacket()
 {
 	return Ethernet.socketSendUDP(sockindex);
 }
-
-size_t EthernetUDP::write(uint8_t byte)
-{
-	return write(&byte, 1);
-}
-
+//-----------------------------------------------------------------------------
 size_t EthernetUDP::write(const uint8_t *buffer, size_t size)
 {
 	//Serial.printf("UDP write %d\n", size);
@@ -95,7 +93,7 @@ size_t EthernetUDP::write(const uint8_t *buffer, size_t size)
 	_offset += bytes_written;
 	return bytes_written;
 }
-
+//-----------------------------------------------------------------------------
 int EthernetUDP::parsePacket()
 {
 	// discard any remaining bytes in the last packet
@@ -127,7 +125,7 @@ int EthernetUDP::parsePacket()
 	// There aren't any packets available
 	return 0;
 }
-
+//-----------------------------------------------------------------------------
 int EthernetUDP::read()
 {
 	uint8_t byte;
@@ -141,7 +139,7 @@ int EthernetUDP::read()
 	// If we get here, there's no data available
 	return -1;
 }
-
+//-----------------------------------------------------------------------------
 int EthernetUDP::read(unsigned char *buffer, size_t len)
 {
 	if (_remaining > 0) {
@@ -163,7 +161,7 @@ int EthernetUDP::read(unsigned char *buffer, size_t len)
 	// If we get here, there's no data available or recv failed
 	return -1;
 }
-
+//-----------------------------------------------------------------------------
 int EthernetUDP::peek()
 {
 	// Unlike recv, peek doesn't check to see if there's any data available, so we must.
@@ -172,13 +170,14 @@ int EthernetUDP::peek()
 	if (sockindex >= MAX_SOCK_NUM || _remaining == 0) return -1;
 	return Ethernet.socketPeek(sockindex);
 }
-
+//-----------------------------------------------------------------------------
 void EthernetUDP::flush()
 {
 	// TODO: we should wait for TX buffer to be emptied
 }
 
 /* Start EthernetUDP socket, listening at local port PORT */
+//-----------------------------------------------------------------------------
 uint8_t EthernetUDP::beginMulticast(IPAddress ip, uint16_t port)
 {
 	if (sockindex < MAX_SOCK_NUM) Ethernet.socketClose(sockindex);

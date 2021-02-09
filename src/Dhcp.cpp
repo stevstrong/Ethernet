@@ -4,8 +4,8 @@
 #include <Arduino.h>
 #include "Ethernet.h"
 #include "Dhcp.h"
-#include "utility/w5100.h"
-
+#include "utility/w5500.h"
+//-----------------------------------------------------------------------------
 int DhcpClass::beginWithDHCP(uint8_t *mac, unsigned long timeout, unsigned long responseTimeout)
 {
 	_dhcpLeaseTime=0;
@@ -22,13 +22,13 @@ int DhcpClass::beginWithDHCP(uint8_t *mac, unsigned long timeout, unsigned long 
 	_dhcp_state = STATE_DHCP_START;
 	return request_DHCP_lease();
 }
-
+//-----------------------------------------------------------------------------
 void DhcpClass::reset_DHCP_lease()
 {
 	// zero out _dhcpSubnetMask, _dhcpGatewayIp, _dhcpLocalIp, _dhcpDhcpServerIp, _dhcpDnsServerIp
 	memset(_dhcpLocalIp, 0, 20);
 }
-
+//-----------------------------------------------------------------------------
 	//return:0 on error, 1 if request is sent and response is received
 int DhcpClass::request_DHCP_lease()
 {
@@ -111,11 +111,11 @@ int DhcpClass::request_DHCP_lease()
 	_lastCheckLeaseMillis = millis();
 	return result;
 }
-
+//-----------------------------------------------------------------------------
 void DhcpClass::presend_DHCP()
 {
 }
-
+//-----------------------------------------------------------------------------
 void DhcpClass::send_DHCP_MESSAGE(uint8_t messageType, uint16_t secondsElapsed)
 {
 	uint8_t buffer[32];
@@ -150,20 +150,20 @@ void DhcpClass::send_DHCP_MESSAGE(uint8_t messageType, uint16_t secondsElapsed)
 	// siaddr: already zeroed
 	// giaddr: already zeroed
 
-	//put data in W5100 transmit buffer
+	//put data in W5500 transmit buffer
 	_dhcpUdpSocket.write(buffer, 28);
 
 	memset(buffer, 0, 32); // clear local buffer
 
 	memcpy(buffer, _dhcpMacAddr, 6); // chaddr
 
-	//put data in W5100 transmit buffer
+	//put data in W5500 transmit buffer
 	_dhcpUdpSocket.write(buffer, 16);
 
 	memset(buffer, 0, 32); // clear local buffer
 
 	// leave zeroed out for sname && file
-	// put in W5100 transmit buffer x 6 (192 bytes)
+	// put in W5500 transmit buffer x 6 (192 bytes)
 
 	for(int i = 0; i < 6; i++) {
 		_dhcpUdpSocket.write(buffer, 32);
@@ -195,7 +195,7 @@ void DhcpClass::send_DHCP_MESSAGE(uint8_t messageType, uint16_t secondsElapsed)
 	printByte((char*)&(buffer[26]), _dhcpMacAddr[4]);
 	printByte((char*)&(buffer[28]), _dhcpMacAddr[5]);
 
-	//put data in W5100 transmit buffer
+	//put data in W5500 transmit buffer
 	_dhcpUdpSocket.write(buffer, 30);
 
 	if (messageType == DHCP_REQUEST) {
@@ -213,7 +213,7 @@ void DhcpClass::send_DHCP_MESSAGE(uint8_t messageType, uint16_t secondsElapsed)
 		buffer[10] = _dhcpDhcpServerIp[2];
 		buffer[11] = _dhcpDhcpServerIp[3];
 
-		//put data in W5100 transmit buffer
+		//put data in W5500 transmit buffer
 		_dhcpUdpSocket.write(buffer, 12);
 	}
 
@@ -227,12 +227,12 @@ void DhcpClass::send_DHCP_MESSAGE(uint8_t messageType, uint16_t secondsElapsed)
 	buffer[7] = dhcpT2value;
 	buffer[8] = endOption;
 
-	//put data in W5100 transmit buffer
+	//put data in W5500 transmit buffer
 	_dhcpUdpSocket.write(buffer, 9);
 
 	_dhcpUdpSocket.endPacket();
 }
-
+//-----------------------------------------------------------------------------
 uint8_t DhcpClass::parseDHCPResponse(unsigned long responseTimeout, uint32_t& transactionId)
 {
 	uint8_t type = 0;
@@ -339,8 +339,7 @@ uint8_t DhcpClass::parseDHCPResponse(unsigned long responseTimeout, uint32_t& tr
 
 	return type;
 }
-
-
+//-----------------------------------------------------------------------------
 /*
     returns:
     0/DHCP_CHECK_NONE: nothing happened
@@ -349,6 +348,7 @@ uint8_t DhcpClass::parseDHCPResponse(unsigned long responseTimeout, uint32_t& tr
     3/DHCP_CHECK_REBIND_FAIL: rebind fail
     4/DHCP_CHECK_REBIND_OK: rebind success
 */
+//-----------------------------------------------------------------------------
 int DhcpClass::checkLease()
 {
 	int rc = DHCP_CHECK_NONE;
@@ -394,32 +394,7 @@ int DhcpClass::checkLease()
 	}
 	return rc;
 }
-
-IPAddress DhcpClass::getLocalIp()
-{
-	return IPAddress(_dhcpLocalIp);
-}
-
-IPAddress DhcpClass::getSubnetMask()
-{
-	return IPAddress(_dhcpSubnetMask);
-}
-
-IPAddress DhcpClass::getGatewayIp()
-{
-	return IPAddress(_dhcpGatewayIp);
-}
-
-IPAddress DhcpClass::getDhcpServerIp()
-{
-	return IPAddress(_dhcpDhcpServerIp);
-}
-
-IPAddress DhcpClass::getDnsServerIp()
-{
-	return IPAddress(_dhcpDnsServerIp);
-}
-
+//-----------------------------------------------------------------------------
 void DhcpClass::printByte(char * buf, uint8_t n )
 {
 	char *str = &buf[1];
