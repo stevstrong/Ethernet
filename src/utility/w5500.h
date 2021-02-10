@@ -18,7 +18,7 @@
 #include <SPI.h>
 
 // Safe for all chips
-#define SPI_ETHERNET_SETTINGS SPISettings(40000000, MSBFIRST, SPI_MODE0)
+#define SPI_ETHERNET_SETTINGS SPISettings(36000000, MSBFIRST, SPI_MODE0)
 
 
 // Require Ethernet.h, because we need MAX_SOCK_NUM
@@ -289,9 +289,6 @@ public:
       return socknum * SSIZE + 0xC000;
   }
 
-  static bool hasOffsetAddressMapping(void) {
-    return true;
-  }
   static void setSSpin(uint8_t pin) { ss_pin = pin; }
 
 private:
@@ -299,15 +296,15 @@ private:
 	static volatile uint32 *ss_pin_reg;
 	static uint32 ss_pin_mask;
 	inline static void initSS() {
-		ss_pin_reg = portOutputRegister(digitalPinToPort(ss_pin));
+		ss_pin_reg = (volatile uint32 *)portSetRegister(ss_pin);
 		ss_pin_mask = digitalPinToBitMask(ss_pin);
 		pinMode(ss_pin, OUTPUT);
 	}
 	inline static void setSS() {
-		*(ss_pin_reg) |= ss_pin_mask<<16; // set low
+		*(ss_pin_reg) = ss_pin_mask<<16; // set low
 	}
 	inline static void resetSS() {
-		*(ss_pin_reg) |= ss_pin_mask; // set high
+		*(ss_pin_reg) = ss_pin_mask; // set high
 	}
 #else
 	inline static void initSS() {

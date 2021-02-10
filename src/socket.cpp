@@ -234,9 +234,8 @@ void EthernetClass::socketDisconnect(uint8_t s)
 static uint16_t getSnRX_RSR(uint8_t s)
 {
 #if 1
-	uint16_t val, prev;
-
-	prev = W5500.readSnRX_RSR(s);
+	uint16_t val;
+	uint16_t prev = W5500.readSnRX_RSR(s);
 	while (1) {
 		val = W5500.readSnRX_RSR(s);
 		if (val == prev) {
@@ -252,22 +251,11 @@ static uint16_t getSnRX_RSR(uint8_t s)
 //-----------------------------------------------------------------------------
 static void read_data(uint8_t s, uint16_t src, uint8_t *dst, uint16_t len)
 {
-	uint16_t size;
-	uint16_t src_mask;
-	uint16_t src_ptr;
-
 	//Serial.printf("read_data, len=%d, at:%d\n", len, src);
-	src_mask = (uint16_t)src & W5500.SMASK;
-	src_ptr = W5500.RBASE(s) + src_mask;
+	uint16_t src_mask = (uint16_t)src & W5500.SMASK;
+	uint16_t src_ptr = W5500.RBASE(s) + src_mask;
 
-	if (W5500.hasOffsetAddressMapping() || src_mask + len <= W5500.SSIZE) {
-		W5500.read(src_ptr, dst, len);
-	} else {
-		size = W5500.SSIZE - src_mask;
-		W5500.read(src_ptr, dst, size);
-		dst += size;
-		W5500.read(W5500.RBASE(s), dst, len - size);
-	}
+	W5500.read(src_ptr, dst, len);
 }
 //-----------------------------------------------------------------------------
 // Receive data.  Returns size, or -1 for no data, or 0 if connection closed
@@ -346,17 +334,17 @@ uint8_t EthernetClass::socketPeek(uint8_t s)
 //-----------------------------------------------------------------------------
 static uint16_t getSnTX_FSR(uint8_t s)
 {
-        uint16_t val, prev;
+	uint16_t val, prev;
 
-        prev = W5500.readSnTX_FSR(s);
-        while (1) {
-                val = W5500.readSnTX_FSR(s);
-                if (val == prev) {
+	prev = W5500.readSnTX_FSR(s);
+	while (1) {
+		val = W5500.readSnTX_FSR(s);
+		if (val == prev) {
 			state[s].TX_FSR = val;
 			return val;
 		}
-                prev = val;
-        }
+		prev = val;
+	}
 }
 //-----------------------------------------------------------------------------
 static void write_data(uint8_t s, uint16_t data_offset, const uint8_t *data, uint16_t len)
@@ -366,14 +354,7 @@ static void write_data(uint8_t s, uint16_t data_offset, const uint8_t *data, uin
 	uint16_t offset = ptr & W5500.SMASK;
 	uint16_t dstAddr = offset + W5500.SBASE(s);
 
-	if (W5500.hasOffsetAddressMapping() || offset + len <= W5500.SSIZE) {
-		W5500.write(dstAddr, data, len);
-	} else {
-		// Wrap around circular buffer
-		uint16_t size = W5500.SSIZE - offset;
-		W5500.write(dstAddr, data, size);
-		W5500.write(W5500.SBASE(s), data + size, len - size);
-	}
+	W5500.write(dstAddr, data, len);
 	ptr += len;
 	W5500.writeSnTX_WR(s, ptr);
 }
@@ -385,29 +366,24 @@ static void write_data(uint8_t s, uint16_t data_offset, const uint8_t *data, uin
  */
 uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 {
-	uint8_t status=0;
-	uint16_t ret=0;
-	uint16_t freesize=0;
-
 	if (len > W5500.SSIZE) {
-		ret = W5500.SSIZE; // check size not to exceed MAX size.
-	} else {
-		ret = len;
+		len = W5500.SSIZE; // check size not to exceed MAX size.
 	}
 
+	uint16_t freesize;
 	// if freebuf is available, start.
 	do {
 		freesize = getSnTX_FSR(s);
-		status = W5500.readSnSR(s);
+		uint8_t status = W5500.readSnSR(s);
 		if ((status != SnSR::ESTABLISHED) && (status != SnSR::CLOSE_WAIT)) {
-			ret = 0;
+			len = 0;
 			break;
 		}
 		yield();
-	} while (freesize < ret);
+	} while (freesize < len);
 
 	// copy data
-	write_data(s, 0, (uint8_t *)buf, ret);
+	write_data(s, 0, (uint8_t *)buf, len);
 	W5500.execCmdSn(s, Sock_SEND);
 
 	/* +2008.01 bj */
@@ -420,15 +396,13 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 	}
 	/* +2008.01 bj */
 	W5500.writeSnIR(s, SnIR::SEND_OK);
-	return ret;
+	return len;
 }
 //-----------------------------------------------------------------------------
 uint16_t EthernetClass::socketSendAvailable(uint8_t s)
 {
-	uint8_t status=0;
-	uint16_t freesize=0;
-	freesize = getSnTX_FSR(s);
-	status = W5500.readSnSR(s);
+	uint16_t freesize = getSnTX_FSR(s);
+	uint8_t status = W5500.readSnSR(s);
 	if ((status == SnSR::ESTABLISHED) || (status == SnSR::CLOSE_WAIT)) {
 		return freesize;
 	}
@@ -438,15 +412,12 @@ uint16_t EthernetClass::socketSendAvailable(uint8_t s)
 uint16_t EthernetClass::socketBufferData(uint8_t s, uint16_t offset, const uint8_t* buf, uint16_t len)
 {
 	//Serial.printf("  bufferData, offset=%d, len=%d\n", offset, len);
-	uint16_t ret =0;
 	uint16_t txfree = getSnTX_FSR(s);
 	if (len > txfree) {
-		ret = txfree; // check size not to exceed MAX size.
-	} else {
-		ret = len;
+		len = txfree; // check size not to exceed MAX size.
 	}
-	write_data(s, offset, buf, ret);
-	return ret;
+	write_data(s, offset, buf, len);
+	return len;
 }
 //-----------------------------------------------------------------------------
 bool EthernetClass::socketStartUDP(uint8_t s, uint8_t* addr, uint16_t port)

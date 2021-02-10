@@ -11,7 +11,7 @@
 #include <Arduino.h>
 #include "Ethernet.h"
 #include "w5500.h"
-
+#include "utility.h"
 
 /***************************************************/
 /**            Default SS pin setting             **/
@@ -109,6 +109,7 @@ uint8_t W5500Class::init(void)
 	// plausability check
 	if (! isW5500()) return 0;
 
+
 	CH_BASE_MSB = 0x10;
 #ifdef ETHERNET_LARGE_BUFFERS
 #if MAX_SOCK_NUM <= 1
@@ -120,6 +121,7 @@ uint8_t W5500Class::init(void)
 #else
 	SSIZE = 2048;
 #endif
+
 	SMASK = SSIZE - 1;
 	for (i=0; i<MAX_SOCK_NUM; i++) {
 		writeSnRX_SIZE(i, SSIZE >> 10);
@@ -130,8 +132,9 @@ uint8_t W5500Class::init(void)
 		writeSnTX_SIZE(i, 0);
 	}
 #endif
+	Serial.print("\nMAX_SOCK_NUM = "); Serial.println(MAX_SOCK_NUM);
+	Serial.print("SSIZE = "); Serial.println(SSIZE);
 
-//	SPI.endTransaction();
 	initialized = true;
 	return 1; // successful init
 }
@@ -216,14 +219,7 @@ uint16_t W5500Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 		SPI.write(cmd, len + 3);
 	} else {
 		SPI.write(cmd, 3);
-#ifdef SPI_HAS_TRANSFER_BUF
 		SPI.write(buf, len);
-#else
-		// TODO: copy 8 bytes at a time to cmd[] and block transfer
-		for (uint16_t i=0; i < len; i++) {
-			SPI.write(buf[i]);
-		}
-#endif
 	}
 	resetSS();
 	return len;
