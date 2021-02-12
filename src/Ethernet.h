@@ -229,6 +229,7 @@ public:
 	uint8_t getSocketNumber() const { return sockindex; }
 	virtual uint16_t localPort();
 	virtual IPAddress remoteIP();
+	virtual void getRemoteIP(IPAddress ip) { ip = remoteIP(); }
 	virtual uint16_t remotePort();
 	virtual void setConnectionTimeout(uint16_t timeout) { _timeout = timeout; }
 
